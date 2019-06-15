@@ -1,11 +1,17 @@
 <script>
 	import Solvable from './Solvable.svelte'
+	import {correct_count} from './stores.js'
 	import Cookies from 'js-cookie'
+	import { onMount } from 'svelte';
 	
 	let search_term = ''
 	let base_verb = 'base verb...'
 	let amount = 7
+	let solvable_count = 0
 	let searched = false
+	let active = false
+	let timers
+	$correct_count = {0:false}
 	const APIURL = 'http://spanish.webfactoo.com/verbos_api.php'
 	const moods = ['Imperativo Afirmativo', 'Imperativo Negativo', 'Indicativo', 'Subjuntivo']
 	const tenses = ['Condicional', 'Condicional perfecto', 'Futuro', 'Futuro perfecto', 'Imperfecto', 'Pluscuamperfecto', 'Presente', 'Presente perfecto', 'Pretérito', 'Pretérito Anterior']
@@ -16,8 +22,12 @@
 	let moodz = ['Indicativo']
 	let tensez = ['Pretérito', 'Imperfecto', 'Presente']
 	let formz = ['1s', '2s','3s','1p', '2p','3p', 'gerund', 'past participle']
-	
-	import { onMount } from 'svelte';
+	$: if (Object.values($correct_count).every(x=>x===true)) {
+		console.log("gronk")
+		if (typeof timers === "Object") timers.clearTimeout()
+		active = true
+		timers = setTimeout(()=>{active=false;console.log("fall")}, 3000)
+	}
 
 	onMount(()=>{
 		let user_prefs = JSON.parse(Cookies.get('spanish_settings'))
@@ -25,7 +35,6 @@
 		tensez = user_prefs.tensez.length===0 ? tensez : user_prefs.tensez
 		formz = user_prefs.formz.length===0 ? formz : user_prefs.formz
 		amount = user_prefs.amount ? user_prefs.amount : amount
-		
 	})	
 	
 	function handleSubmit (e) {
@@ -35,12 +44,13 @@
 			search(search_term)
 		}
 	}
-	const savePrefs = () => Cookies.set('spanish_settings',JSON.stringify({moodz,tensez,formz,amount}))
+	const savePrefs = () => {
+		Cookies.set('spanish_settings',JSON.stringify({moodz,tensez,formz,amount}))
+	}
 
 	async function search(verb) {
 		solvables = []
 		searched = true
-		Cookies.set('spanish_settings',JSON.stringify({moodz,tensez,formz}))
 		base_verb = verb
 		const myHeaders = new Headers();
 		const myInit = {
@@ -62,13 +72,14 @@
 		collection = []
 		let verb
 		for (let v in verbs) {
-		verb = verbs[v]
+			verb = verbs[v]
+			let exclude = []
 			for (let m in moodz) {
 				for (let t in tensez) {
 					if (verb[moodz[m]][tensez[t]]) {
 						for (let f in formz) {
-							console.log("yeah", verb[moodz[m]][tensez[t]]["forms"][formz[f]])
-							if (verb[moodz[m]][tensez[t]]["forms"][formz[f]]) {
+							if (verb[moodz[m]][tensez[t]]["forms"][formz[f]]
+								&& !exclude.includes(formz[f])) {
 								collection = [...collection,{verb:v,
 												english:verb[moodz[m]][tensez[t]].english,
 												solution:verb[moodz[m]][tensez[t]]["forms"][formz[f]],
@@ -76,6 +87,8 @@
 												tense:tensez[t],
 												form:formz[f],
 								}]
+								if (["gerund", "past participle"].includes(formz[f]))
+									exclude.push(formz[f])
 							}
 						}
 					}
@@ -87,13 +100,16 @@
 	}
 	function assemble () {
 		solvables = []
-		const a = (amount > collection.length && collection.length !== 0) ? collection.length : a
-		for (let n=0;n<a;n++) {
-			solvables = [...solvables.concat(collection.splice(Math.floor(Math.random()*collection.length), 1))]
+		solvable_count = (amount > collection.length && collection.length !== 0) ? collection.length : amount
+		for (let n=0;n<solvable_count;n++) {
+			const current_solvable = collection.splice(Math.floor(Math.random()*collection.length), 1)
+			current_solvable[0].id = n
+			console.log("currs", current_solvable)
+			solvables = [...solvables.concat(current_solvable)]
 		}
 	}
 </script>
-
+<img src="img/success.png" class="success" class:active alt="success!!!" />
 <h1>Welcome to Spanish Conjugation Practice!</h1>
 <div id="main">
 <div style="grid-area:block1">
@@ -120,7 +136,7 @@
 	<div>
 		<h2>3. How many to solve?</h2>
 		<p>How many random excercises would you like to solve?</p>
-		<input type="range" on:change={savePrefs} bind:value={amount} min=1 max=10> {amount}
+		<input type="range" on:change={savePrefs} bind:value={amount} min=1 max=20> {amount}
 	</div>
 	<div>
 	<h2>4. Select tenses</h2>
@@ -179,6 +195,17 @@
 			grid-template-areas:   "block1 block2" "block3 block3";
 
 		}
+	}
+	.success {
+		position: fixed;
+		top: 50%;
+		left: 50%;
+		width: 1px;
+		height: 1px;
+		transition: transform 2s;
+	}
+	.success.active {
+		transform: rotate(3600deg) scale(300);
 	}
 	.solvables {
 		display: grid;

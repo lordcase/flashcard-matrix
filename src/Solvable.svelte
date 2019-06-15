@@ -1,23 +1,26 @@
 <script>
 
-import { onMount } from 'svelte';
+import {correct_count} from './stores.js'
 
 export let question
 let answer = ''
 let correct = false
 let unhidden = false
+$correct_count[question.id] = false
 function verify() {
-    correct = answer.toUpperCase() === question.solution.toUpperCase()
+    if (answer.toUpperCase() === question.solution.toUpperCase()) {
+        correct = true
+        $correct_count[question.id] = true
+    } else {
+        correct = false
+        $correct_count[question.id] = false
+    }
 }
-onMount(()=>{
-    console.log("mounted - " + question.solution)
-    return ()=>{console.log("unmmm")}
-    })
 
 </script>
 
 
-<div>{question.verb} - {question.mood}-{question.tense}-{question.form} </div><div><input type="text" bind:value={answer} on:keyup={verify} data-stop="true" class:correct /></div> <div class="hidden" class:unhidden on:click="{() => unhidden = !unhidden}">{question.solution}</div>
+<div>{#if ['gerund', 'past participle'].includes(question.form)}{question.verb} - {question.form} {:else} {question.verb} - {question.mood}-{question.tense}-{question.form} {/if}</div><div><input type="text" bind:value={answer} on:keyup={verify} data-stop="true" class:correct /></div> <div class="hidden" class:unhidden on:click="{() => unhidden = !unhidden}">{question.solution}</div>
 <style>
 input.correct {
     background-color: green;
